@@ -18,6 +18,11 @@ and \_NET_NUMBER_OF_DESKTOPS X properties.
 
 *lemonstatus* is configured through config.h file, 'cause it doesn't suck.
 
+## Signals
+
+- REDRAW_SIGNAL (defaults to SIGUSR1) - redraw status immediately
+- REPLACE_SIGNAL (defaults to SIGUSR2) - replace current instance (useful after make install)
+
 # SEE ALSO
 
 lemonbar(1)
