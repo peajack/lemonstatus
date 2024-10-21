@@ -1,4 +1,4 @@
-[screenshot demonstrating how does it look like](./screenshot.png)
+![screenshot demonstrating how does it look like](./screenshot.png)
 
 # lemonstatus
 
