@@ -2,6 +2,9 @@
 #define REPLACE_SIGNAL  SIGUSR2
 #define INTERVAL        5000
 
+#define DISPLAY_BATT        1
+#define DISPLAY_CPU         1
+
 /* Normal font logos */
 /*
  * #define GROUP_LOGO       " G "

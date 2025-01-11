@@ -262,15 +262,19 @@ void format(void) {
     /* right part of status bar */
     printf("%%{r}");
 
+#if defined DISPLAY_CPU
     /* print cpu/men info */
     printf("%%{B%2$s}%%{F%3$s} %1$s %%{B-}%%{F-}", cpu_mem,
                                                     CPU_BG,
                                                     CPU_FG);
+#endif
    
+#if defined DISPLAY_BATT
     /* print battery info */
     printf("%%{B%2$s}%%{F%3$s} %1$s %%{B-}%%{F-}", battery,
                                                     BATT_BG,
                                                     BATT_FG);
+#endif
 
     /* print keyboard layout */
     printf("%%{B%1$s}%%{F%2$s}%3$s%4$s %%{B-}%%{F-}", LAYOUT_BG,
