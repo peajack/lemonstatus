@@ -183,9 +183,9 @@ static const char *get_battery(void) {
     }
 
     static char buf[30];
-    snprintf(buf, sizeof(buf), "%%{F%1$s}%2$s %3$d %%{B-}%%{F-}", foreground_color,
-                                                                 state,
-                                                                 apm_info.battery_life);
+    snprintf(buf, sizeof(buf), "%%{F%1$s}%2$s %3$d", foreground_color,
+                                                     state,
+                                                     apm_info.battery_life);
     return strdup(buf);
 }
 
