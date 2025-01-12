@@ -195,15 +195,23 @@ static const char *get_cpu_mem(void) {
     int getMhz[] = {CTL_HW, HW_CPUSPEED};
     int getCPUTemp[] = {CTL_HW, HW_SENSORS, 0, SENSOR_TEMP, 0 };
     int cputemp;
+    int retval;
     struct sensor temp;
     static char buf[50];
     long freemem;
 
     sz = sizeof(cpuspeed);
-    sysctl(getMhz, 2, &cpuspeed, &sz, NULL, 0);
+    retval = sysctl(getMhz, 2, &cpuspeed, &sz, NULL, 0);
+    if(retval == -1) {
+        cpuspeed = 0;
+    }
     sz = sizeof(temp);
-    sysctl(getCPUTemp, 5, &temp, &sz, NULL, 0);
-    cputemp = (temp.value - 273150000) /1E6;
+    retval = sysctl(getCPUTemp, 5, &temp, &sz, NULL, 0);
+    if(retval == -1) {
+        cputemp = 0;
+    } else {
+        cputemp = (temp.value - 273150000) /1E6;
+    }
 
     freemem = sysconf(_SC_AVPHYS_PAGES)*sysconf(_SC_PAGESIZE)>>20;
 
