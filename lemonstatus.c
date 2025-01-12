@@ -5,14 +5,17 @@
 #include <signal.h>
 #include <sys/event.h>
 #include <sys/signal.h>
+#include <sys/sysctl.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/sensors.h>
 #include <fcntl.h>
 #include <machine/apmvar.h>
 #include <unistd.h>
 #include <time.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #include <X11/XKBlib.h>
 #include <X11/extensions/XKBrules.h>
@@ -20,6 +23,7 @@
 
 #include "lemonstatus.h"
 #include "config.h"
+
 
 Display *dpy;
 Window root;
@@ -99,20 +103,25 @@ static const char *get_groups_str(void) {
     unsigned long current = *get_group();
     unsigned long last = *get_groups_num();
 
-    char result[100];
+    char result[400];
     for (unsigned long i = 1; i <= last; i++) {
         if (i == current) {
             char tmp[40];
             snprintf(tmp, sizeof(tmp),
-                     "%%{B%s}%%{F%s} %lu %%{B-}%%{F-}",
-                     ACTIVE_GROUP_BG, ACTIVE_GROUP_FG, i);
+                     "%%{B%s}%%{F%s} %lu ",
+                     CURRENT_GROUP_BG, CURRENT_GROUP_FG, i);
             strncat(result, tmp, sizeof(result) - sizeof(tmp) - 1);
         } else {
-            char tmp[8];
-            snprintf(tmp, sizeof(tmp), " %lu ", i);
+            char tmp[40];
+            snprintf(tmp, sizeof(tmp),
+                     "%%{B%s}%%{F%s} %lu ",
+                     NORMAL_GROUP_BG, NORMAL_GROUP_FG, i);
             strncat(result, tmp, sizeof(result) - sizeof(tmp) - 1);
         }
     }
+    char tmp[40];
+    snprintf(tmp, sizeof(tmp), "%%{B-}%%{F-}");
+    strncat(result, tmp, sizeof(result) - sizeof(tmp) - 1);
     return strdup(result);
 }
 
@@ -147,23 +156,63 @@ static const char *get_battery(void) {
     }
 
     char *state = NULL;
+    char *foreground_color = NULL;
     
     switch (apm_info.ac_state) {
     case APM_AC_OFF:
-        state = "-";
+        state = AC_ON_LOGO;
+        foreground_color = BATT_FG;
         break;
     case APM_AC_ON:
-        state = "+";
+        state = AC_ON_LOGO;
+        foreground_color = C_BLUE;
         break;
     case APM_AC_BACKUP:
     case APM_AC_UNKNOWN:
-        return "-";
+        return AC_UNKNOWN_LOGO;
     default:
-        state = "?";
+        state = AC_DEFAULT_LOGO;
     }
 
-    static char buf[7];
-    snprintf(buf, sizeof(buf), "%s %d%%", state, apm_info.battery_life);
+    if(apm_info.battery_life <= 10) {
+        foreground_color = C_RED;
+    } else if(apm_info.battery_life > 10 && apm_info.battery_life <= 50) {
+        foreground_color = C_ORANGE;
+    } else {
+        foreground_color = C_GREEN;
+    }
+
+    static char buf[30];
+    snprintf(buf, sizeof(buf), "%%{F%1$s}%2$s %3$d", foreground_color,
+                                                     state,
+                                                     apm_info.battery_life);
+    return strdup(buf);
+}
+
+static const char *get_cpu_mem(void) {
+    size_t sz;
+    int cpuspeed;
+    int getMhz[] = {CTL_HW, HW_CPUSPEED};
+    int getCPUTemp[] = {CTL_HW, HW_SENSORS, 0, SENSOR_TEMP, 0 };
+    int cputemp;
+    struct sensor temp;
+    static char buf[50];
+    long freemem;
+
+    sz = sizeof(cpuspeed);
+    sysctl(getMhz, 2, &cpuspeed, &sz, NULL, 0);
+    sz = sizeof(temp);
+    sysctl(getCPUTemp, 5, &temp, &sz, NULL, 0);
+    cputemp = (temp.value - 273150000) /1E6;
+
+    freemem = sysconf(_SC_AVPHYS_PAGES)*sysconf(_SC_PAGESIZE)>>20;
+
+    snprintf(buf, sizeof(buf), "%1$s %2$dMhz %3$s %4$d°C %5$s %6$ldMB", CPU_LOGO,
+                                                           cpuspeed,
+                                                           TEMP_LOGO,
+                                                           cputemp,
+                                                           MEM_LOGO,
+                                                           freemem);
     return strdup(buf);
 }
 
@@ -171,10 +220,8 @@ static const char *get_time(void) {
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
 
-    static char buf[20];
-    snprintf(buf, sizeof(buf), "%d.%02d.%02d %02d:%02d:%02d",
-             tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900,
-             tm.tm_hour, tm.tm_min, tm.tm_sec);
+    static char buf[100];
+    strftime (buf,50,"%a %d %b %H:%M %%{B-}%%{F-}", &tm);
     return strdup(buf);
 }
 
@@ -201,9 +248,45 @@ void format(void) {
     const char *window_name = get_window_name(window);
     const char *battery = get_battery();
     const char *time = get_time();
+    const char *cpu_mem = get_cpu_mem();
  
-    printf("%1$s %%{B%6$s}%%{F%7$s} %2$s %%{B-}%%{F-} %%{r} %3$s %%{B%6$s}%%{F%7$s} BAT %4$s %%{B-}%%{F-} %5$s \n",
-           groups, window_name, layout, battery, time, SECONDARY_BG, SECONDARY_FG);
+    /* print groups */
+    printf("%%{B%1$s}%%{F%2$s}%3$s%4$s %%{B-}%%{F-}", GROUP_LOGO_BG,
+                                                      GROUP_LOGO_FG,
+                                                      GROUP_LOGO,
+                                                      groups),
+    
+    /* print active window */
+    printf("%1$s%2$s ", WINDOW_LOGO, window_name);
+
+    /* right part of status bar */
+    printf("%%{r}");
+
+#if defined DISPLAY_CPU
+    /* print cpu/men info */
+    printf("%%{B%2$s}%%{F%3$s} %1$s %%{B-}%%{F-}", cpu_mem,
+                                                    CPU_BG,
+                                                    CPU_FG);
+#endif
+   
+#if defined DISPLAY_BATT
+    /* print battery info */
+    printf("%%{B%2$s}%%{F%3$s} %1$s %%{B-}%%{F-}", battery,
+                                                    BATT_BG,
+                                                    BATT_FG);
+#endif
+
+    /* print keyboard layout */
+    printf("%%{B%1$s}%%{F%2$s}%3$s%4$s %%{B-}%%{F-}", LAYOUT_BG,
+                                                     LAYOUT_FG,
+                                                     LAYOUT_LOGO,
+                                                     layout);
+
+    /* print date/time */
+    printf("%%{B%1$s}%%{F%2$s}%3$s%4$s%%{B-}%%{F-}\n", TIME_BG,
+                                                       TIME_FG,
+                                                       TIME_LOGO,
+                                                       time);
     fflush(stdout);
 }
 
