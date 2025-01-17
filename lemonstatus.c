@@ -16,6 +16,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include <X11/XKBlib.h>
 #include <X11/extensions/XKBrules.h>
@@ -60,6 +61,11 @@ Window current_window(void) {
     return win;
 }
 
+unsigned long *get_window_group(Window win) {
+    const char *group = xprop("_NET_WM_DESKTOP", "CARDINAL", win, 4);
+    return (unsigned long *)group;
+}
+
 static const char *get_window_name(Window win) {
     if (win == 0) {
         return "(n/a)";
@@ -99,27 +105,72 @@ unsigned long *get_group(void) {
     return (unsigned long *)data;
 }
 
+Window *winlist (unsigned long *len) {
+    Atom prop = XInternAtom(dpy,"_NET_CLIENT_LIST",False), type;
+    int form;
+    unsigned long remain;
+    unsigned char *list;
+
+    errno = 0;
+    if (XGetWindowProperty(dpy,XDefaultRootWindow(dpy),prop,
+                0,1024,False,XA_WINDOW,&type,&form,len,&remain,&list) != Success) {
+            perror("winlist() -- GetWinProp");
+        return 0;
+    }
+
+    return (Window*)list;
+}
+
+void get_active_groups(int *active_group, unsigned long last) { 
+    unsigned long len;
+    int i;
+    Window *list;
+
+    list = (Window *)winlist(&len);
+    for(i=0; i<(int)len;i++) {
+        unsigned long group = *get_window_group(list[i]);
+        if(group > 0 && group <= last) {
+            active_group[(int)group]++;
+        } else {
+            active_group[0]++;
+        }
+    }
+}
+
 static const char *get_groups_str(void) {
+    int *active_groups;
     unsigned long current = *get_group();
     unsigned long last = *get_groups_num();
+    int i;
 
-    char result[400];
+    active_groups = (int*)malloc((last+1) * sizeof(int));
+    for(i=0; i <= (int)last; i++) {
+        active_groups[i] = 0;
+    }
+    get_active_groups(active_groups, last);
+
+    char result[600];
     for (unsigned long i = 1; i <= last; i++) {
+        char tmp[100];
         if (i == current) {
-            char tmp[40];
             snprintf(tmp, sizeof(tmp),
-                     "%%{B%s}%%{F%s} %lu ",
+                     "%%{B%s}%%{F%s} %lu %%{B-}%%{F-}",
                      CURRENT_GROUP_BG, CURRENT_GROUP_FG, i);
             strncat(result, tmp, sizeof(result) - sizeof(tmp) - 1);
-        } else {
-            char tmp[40];
+        } else if (active_groups[(int)i] > 0) {
             snprintf(tmp, sizeof(tmp),
-                     "%%{B%s}%%{F%s} %lu ",
+                     "%%{B%s}%%{F%s} %lu %%{B-}%%{F-}",
+                     ACTIVE_GROUP_BG, ACTIVE_GROUP_FG, i);
+            strncat(result, tmp, sizeof(result) - sizeof(tmp) - 1);
+        } else {
+            snprintf(tmp, sizeof(tmp),
+                     "%%{B%s}%%{F%s} %lu %%{B-}%%{F-}",
                      NORMAL_GROUP_BG, NORMAL_GROUP_FG, i);
             strncat(result, tmp, sizeof(result) - sizeof(tmp) - 1);
         }
     }
-    char tmp[40];
+    free(active_groups);
+    char tmp[100];
     snprintf(tmp, sizeof(tmp), "%%{B-}%%{F-}");
     strncat(result, tmp, sizeof(result) - sizeof(tmp) - 1);
     return strdup(result);
@@ -195,15 +246,23 @@ static const char *get_cpu_mem(void) {
     int getMhz[] = {CTL_HW, HW_CPUSPEED};
     int getCPUTemp[] = {CTL_HW, HW_SENSORS, 0, SENSOR_TEMP, 0 };
     int cputemp;
+    int retval;
     struct sensor temp;
     static char buf[50];
     long freemem;
 
     sz = sizeof(cpuspeed);
-    sysctl(getMhz, 2, &cpuspeed, &sz, NULL, 0);
+    retval = sysctl(getMhz, 2, &cpuspeed, &sz, NULL, 0);
+    if(retval == -1) {
+        cpuspeed = 0;
+    }
     sz = sizeof(temp);
-    sysctl(getCPUTemp, 5, &temp, &sz, NULL, 0);
-    cputemp = (temp.value - 273150000) /1E6;
+    retval = sysctl(getCPUTemp, 5, &temp, &sz, NULL, 0);
+    if(retval == -1) {
+        cputemp = 0;
+    } else {
+        cputemp = (temp.value - 273150000) /1E6;
+    }
 
     freemem = sysconf(_SC_AVPHYS_PAGES)*sysconf(_SC_PAGESIZE)>>20;
 
