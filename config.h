@@ -58,7 +58,7 @@
 #define GROUP_LOGO_FG    "#282828"
 #define CURRENT_GROUP_BG "#665C54"
 #define CURRENT_GROUP_FG "#928374"
-#define ACTIVE_GROUP_BG  "#458588"
+#define ACTIVE_GROUP_BG  "#504945"
 #define ACTIVE_GROUP_FG  "#ebdbb2"
 #define NORMAL_GROUP_BG  "#3C3836"
 #define NORMAL_GROUP_FG  "#7C6F64"
