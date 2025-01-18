@@ -2,8 +2,11 @@
 #define REPLACE_SIGNAL  SIGUSR2
 #define INTERVAL        5000
 
+#define DISPLAY_ETH         1
 #define DISPLAY_BATT        1
 #define DISPLAY_CPU         1
+
+#define ETH_INTERFACE   "em0"
 
 /* Normal font logos */
 /*
@@ -65,6 +68,9 @@
 
 #define LAYOUT_BG        "#3C3836"
 #define LAYOUT_FG        "#928374"
+
+#define ETH_BG           "#3C3836"
+#define ETH_FG           "#928374"
 
 #define BATT_BG          "#3C3836"
 #define BATT_FG          "#928374"

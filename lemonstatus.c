@@ -1,8 +1,10 @@
+#include <ifaddrs.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <net/if.h>
 #include <sys/event.h>
 #include <sys/signal.h>
 #include <sys/sysctl.h>
@@ -240,6 +242,35 @@ static const char *get_battery(void) {
     return strdup(buf);
 }
 
+static const char *get_eth_interface(void) {
+    struct ifaddrs *ifal, *ifa;
+    struct if_data *ifd;
+    static char buf[50];
+    char *interface = ETH_INTERFACE;
+    char *foreground_color = NULL;
+
+    if((getifaddrs(&ifal) < 0) || (!strcmp(interface, ""))) {
+        snprintf(buf, sizeof(buf), "󰈀");
+    }
+
+    for (ifa = ifal; ifa; ifa=ifa->ifa_next) {
+        if (!strcmp(ifa->ifa_name, interface) &&
+                        (ifd = (struct if_data *)ifa->ifa_data)) {
+
+            if(LINK_STATE_IS_UP(ifd->ifi_link_state))
+                foreground_color = C_BLUE;
+            else
+                foreground_color = C_ORANGE;
+
+            snprintf(buf, sizeof(buf), "%%{F%1$s}󰈀", foreground_color);
+
+            break;
+        }
+    }
+
+    return strdup(buf);
+}
+
 static const char *get_cpu_mem(void) {
     size_t sz;
     int cpuspeed;
@@ -308,6 +339,7 @@ void format(void) {
     const char *battery = get_battery();
     const char *time = get_time();
     const char *cpu_mem = get_cpu_mem();
+    const char *eth_interface = get_eth_interface();
  
     /* print groups */
     printf("%%{B%1$s}%%{F%2$s}%3$s%4$s %%{B-}%%{F-}", GROUP_LOGO_BG,
@@ -326,6 +358,13 @@ void format(void) {
     printf("%%{B%2$s}%%{F%3$s} %1$s %%{B-}%%{F-}", cpu_mem,
                                                     CPU_BG,
                                                     CPU_FG);
+#endif
+
+#if defined DISPLAY_ETH
+    /* print ethernet interface info */
+    printf("%%{B%2$s}%%{F%3$s} %1$s %%{B-}%%{F-}", eth_interface,
+                                                    ETH_BG,
+                                                    ETH_FG);
 #endif
    
 #if defined DISPLAY_BATT
